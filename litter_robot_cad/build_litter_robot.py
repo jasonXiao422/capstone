@@ -42,16 +42,17 @@ WHEEL_RADIUS = WHEEL_DIAMETER / 2.0
 WHEEL_SIDE_CLEARANCE = 22.0
 WHEEL_X_OFFSET_FROM_END = 96.0
 
-BRUSH_LENGTH = 440.0
-BRUSH_CORE_RADIUS = 18.0
-BRUSH_BRISTLE_RADIUS = 38.0
-BRUSH_CENTER_Z = 47.0
-BRUSH_CENTER_X = -OVERALL_LENGTH / 2.0 - 92.0
+BRUSH_LENGTH = 195.0
+BRUSH_RADIUS = 48.0
+BRUSH_HUB_RADIUS = 14.0
+BRUSH_CENTER_Z = 56.0
+BRUSH_CENTER_X = -OVERALL_LENGTH / 2.0 - 54.0
+BRUSH_CENTER_Y = 112.0
 
 RAMP_WIDTH = 370.0
 RAMP_THICKNESS = 5.0
-RAMP_START_X = BRUSH_CENTER_X + 48.0
-RAMP_START_Z = 39.0
+RAMP_START_X = BRUSH_CENTER_X + 40.0
+RAMP_START_Z = 35.0
 RAMP_END_X = -190.0
 RAMP_END_Z = 166.0
 
@@ -85,9 +86,9 @@ EXPORT = os.path.join(ROOT, "exports")
 STEP_DIR = os.path.join(EXPORT, "step")
 STL_DIR = os.path.join(EXPORT, "stl")
 PNG_DIR = os.path.join(EXPORT, "png")
-PREVIEW_PARTS = os.path.join(EXPORT, "_preview_parts")
 STL_LINEAR_TOLERANCE = 0.35
 STL_ANGULAR_TOLERANCE = 0.32
+LIGHTWEIGHT_EXPORT = True
 
 SILVER = (0.72, 0.74, 0.74, 1.0)
 DARK_SLOT = (0.08, 0.085, 0.09, 1.0)
@@ -96,6 +97,7 @@ MATTE_BLACK = (0.035, 0.038, 0.04, 1.0)
 RUBBER = (0.005, 0.005, 0.005, 1.0)
 ORANGE = (1.0, 0.34, 0.02, 1.0)
 SMOKE = (0.08, 0.10, 0.11, 0.42)
+CLEAR = (0.68, 0.82, 0.92, 0.28)
 STEEL = (0.42, 0.43, 0.43, 1.0)
 GRASS = (0.30, 0.50, 0.23, 1.0)
 
@@ -114,6 +116,8 @@ def colorize(obj, rgba):
 
 
 def safe_fillet(part, edges, radius):
+    if LIGHTWEIGHT_EXPORT:
+        return part
     try:
         if len(edges) == 0:
             return part
@@ -160,6 +164,8 @@ def rail(axis: str, length: float, center: tuple[float, float, float]):
         1.2,
     )
     parts.append(Pos(x, y, z) * body)
+    if LIGHTWEIGHT_EXPORT:
+        return compound(parts)
 
     if axis == "x":
         slot_shapes = [
@@ -234,9 +240,10 @@ def build_brackets():
                 parts.append(Pos(x, y, z) * box(44.0, 44.0, 44.0, BLACK, 1.0))
                 plate_y = y + math.copysign(EXTRUSION / 2.0 + 2.0, y)
                 parts.append(Pos(x, plate_y, z) * box(54.0, 4.0, 54.0, BLACK, 0.6))
-                for dx in (-15.0, 15.0):
-                    for dz in (-15.0, 15.0):
-                        parts.append(bolt_disk_on_y(x + dx, plate_y + math.copysign(2.2, y), z + dz, math.copysign(1, y), 3.2))
+                if not LIGHTWEIGHT_EXPORT:
+                    for dx in (-15.0, 15.0):
+                        for dz in (-15.0, 15.0):
+                            parts.append(bolt_disk_on_y(x + dx, plate_y + math.copysign(2.2, y), z + dz, math.copysign(1, y), 3.2))
 
     # Orange brush-adjustment clevises attached to the front lower frame.
     for y in (-232.0, 232.0):
@@ -249,34 +256,18 @@ def build_wheel_at(x, y_sign):
     z = WHEEL_RADIUS
     parts = []
 
+    # Simple placeholder wheels: black cylinders with plain gray center hubs.
     tire = cyl_y(WHEEL_RADIUS, WHEEL_WIDTH, RUBBER)
+    hub = cyl_y(36.0, WHEEL_WIDTH + 6.0, STEEL)
+    cap_outer_y = y + y_sign * (WHEEL_WIDTH / 2.0 + 4.5)
+    cap_inner_y = y - y_sign * (WHEEL_WIDTH / 2.0 + 4.5)
+    cap = cyl_y(40.0, 8.0, STEEL)
+    axle_button = cyl_y(13.0, 10.0, MATTE_BLACK)
     parts.append(Pos(x, y, z) * tire)
-
-    lug_count = 28
-    for i in range(lug_count):
-        a = math.radians(i * 360.0 / lug_count)
-        lug = box(13.0, WHEEL_WIDTH + 5.0, 30.0, RUBBER, 1.0)
-        parts.append(Pos(x, y, z) * Rot(0, -math.degrees(a), 0) * Pos(WHEEL_RADIUS + 3.0, 0, 0) * lug)
-
-    # Sidewall shoulder knobs, staggered left/right.
-    for side in (-1, 1):
-        for i in range(0, lug_count, 2):
-            a = math.radians((i + 0.5) * 360.0 / lug_count)
-            knob = box(11.0, 12.0, 20.0, RUBBER, 0.8)
-            parts.append(
-                Pos(x, y + side * (WHEEL_WIDTH / 2.0 + 3.0), z)
-                * Rot(0, -math.degrees(a), 0)
-                * Pos(WHEEL_RADIUS + 1.5, 0, 0)
-                * knob
-            )
-
-    motor = cyl_y(34.0, WHEEL_WIDTH + 10.0, MATTE_BLACK)
-    cap_outer_y = y + y_sign * (WHEEL_WIDTH / 2.0 + 6.5)
-    cap = cyl_y(25.0, 7.0, ORANGE)
-    ring = cyl_y(37.0, 5.0, ORANGE) - cyl_y(29.0, 7.0, ORANGE)
-    parts.append(Pos(x, y, z) * motor)
+    parts.append(Pos(x, y, z) * hub)
     parts.append(Pos(x, cap_outer_y, z) * cap)
-    parts.append(Pos(x, cap_outer_y - y_sign * 5.0, z) * ring)
+    parts.append(Pos(x, cap_inner_y, z) * cap)
+    parts.append(Pos(x, cap_outer_y + y_sign * 1.0, z) * axle_button)
     return compound(parts)
 
 
@@ -303,9 +294,10 @@ def build_wheel_mounts():
             axle_len = abs(wheel_y - rail_outer_y)
             axle_center_y = (wheel_y + rail_outer_y) / 2.0
             parts.append(Pos(x, axle_center_y, WHEEL_RADIUS) * cyl_y(12.0, axle_len, STEEL))
-            for dx in (-18.0, 18.0):
-                parts.append(bolt_disk_on_y(x + dx, rail_outer_y + s * 9.5, WHEEL_RADIUS + 18.0, s, 3.5))
-                parts.append(bolt_disk_on_y(x + dx, rail_outer_y + s * 9.5, WHEEL_RADIUS - 18.0, s, 3.5))
+            if not LIGHTWEIGHT_EXPORT:
+                for dx in (-18.0, 18.0):
+                    parts.append(bolt_disk_on_y(x + dx, rail_outer_y + s * 9.5, WHEEL_RADIUS + 18.0, s, 3.5))
+                    parts.append(bolt_disk_on_y(x + dx, rail_outer_y + s * 9.5, WHEEL_RADIUS - 18.0, s, 3.5))
     return compound(parts)
 
 
@@ -313,26 +305,28 @@ def build_brush_assembly():
     parts = []
     lower_z = GROUND_CLEARANCE + EXTRUSION / 2.0
 
-    # Orange side arms bolt to the front lower frame and carry the brush bearings.
-    for y in (-232.0, 232.0):
-        parts.append(Pos(-OVERALL_LENGTH / 2.0 - 58.0, y, lower_z - 18.0) * box(120.0, 16.0, 18.0, ORANGE, 1.0))
-        parts.append(Pos(BRUSH_CENTER_X, y, BRUSH_CENTER_Z + 9.0) * box(30.0, 34.0, 54.0, ORANGE, 1.2))
-        parts.append(Pos(BRUSH_CENTER_X + 28.0, y, BRUSH_CENTER_Z + 40.0) * box(60.0, 8.0, 18.0, ORANGE, 0.8))
+    # Two large, low, simple rollers cover the ramp inlet without dense bristle detail.
+    for y in (-BRUSH_CENTER_Y, BRUSH_CENTER_Y):
+        parts.append(Pos(-OVERALL_LENGTH / 2.0 - 30.0, y, lower_z - 22.0) * box(135.0, 18.0, 20.0, ORANGE, 1.0))
+        parts.append(Pos(BRUSH_CENTER_X, y, BRUSH_CENTER_Z + 4.0) * box(32.0, 28.0, 62.0, ORANGE, 1.0))
+        parts.append(Pos(BRUSH_CENTER_X, y, BRUSH_CENTER_Z) * cyl_y(8.0, BRUSH_LENGTH + 42.0, STEEL))
+        parts.append(Pos(BRUSH_CENTER_X, y, BRUSH_CENTER_Z) * cyl_y(BRUSH_RADIUS, BRUSH_LENGTH, BLACK))
+        parts.append(Pos(BRUSH_CENTER_X, y, BRUSH_CENTER_Z) * cyl_y(BRUSH_HUB_RADIUS, BRUSH_LENGTH + 10.0, MATTE_BLACK))
 
-    axle = Pos(BRUSH_CENTER_X, 0, BRUSH_CENTER_Z) * cyl_y(9.0, BRUSH_LENGTH + 88.0, STEEL)
-    core = Pos(BRUSH_CENTER_X, 0, BRUSH_CENTER_Z) * cyl_y(BRUSH_CORE_RADIUS, BRUSH_LENGTH, BLACK)
-    parts.extend([axle, core])
+        if not LIGHTWEIGHT_EXPORT:
+            # Coarse raised ribs suggest a rough brush surface without modeling individual bristles.
+            for i in range(10):
+                a = math.radians(i * 360.0 / 10.0)
+                rib = box(7.0, BRUSH_LENGTH + 3.0, 6.0, BLACK, 0.5)
+                parts.append(
+                    Pos(BRUSH_CENTER_X, y, BRUSH_CENTER_Z)
+                    * Rot(0, -math.degrees(a), 0)
+                    * Pos(BRUSH_RADIUS + 2.0, 0, 0)
+                    * rib
+                )
 
-    bristle_count = 44
-    for i in range(bristle_count):
-        a = math.radians(i * 360.0 / bristle_count)
-        bristle = box(BRUSH_BRISTLE_RADIUS - BRUSH_CORE_RADIUS + 2.0, 3.2, 4.0, BLACK, 0.0)
-        parts.append(
-            Pos(BRUSH_CENTER_X, 0, BRUSH_CENTER_Z)
-            * Rot(0, -math.degrees(a), 0)
-            * Pos((BRUSH_CORE_RADIUS + BRUSH_BRISTLE_RADIUS) / 2.0, 0, 0)
-            * bristle
-        )
+    center_guard = box(24.0, 34.0, 52.0, MATTE_BLACK, 0.8)
+    parts.append(Pos(BRUSH_CENTER_X + 10.0, 0, BRUSH_CENTER_Z + 10.0) * center_guard)
     return compound(parts)
 
 
@@ -447,17 +441,72 @@ def build_top_handles():
     return compound(parts)
 
 
+def build_transparent_body_panels():
+    lower_z = GROUND_CLEARANCE + EXTRUSION
+    upper_z = FRAME_HEIGHT - EXTRUSION
+    side_y = OVERALL_WIDTH / 2.0 - EXTRUSION / 2.0
+    body_center_z = (lower_z + upper_z) / 2.0
+    body_height = upper_z - lower_z
+    parts = []
+
+    # Transparent service panels make the internal bin, ramp, battery, and electronics readable.
+    for y in (-side_y - 3.0, side_y + 3.0):
+        parts.append(Pos(5.0, y, body_center_z) * box(660.0, 4.0, body_height - 34.0, CLEAR, 0.8))
+        for x in (-270.0, 0.0, 270.0):
+            parts.append(Pos(x, y, body_center_z) * box(9.0, 8.0, body_height - 18.0, BLACK, 0.5))
+
+    top_panel_z = FRAME_HEIGHT + 3.5
+    parts.append(Pos(-92.0, 0, top_panel_z) * box(260.0, 360.0, 5.0, CLEAR, 0.6))
+    parts.append(Pos(190.0, 0, top_panel_z) * box(250.0, 360.0, 5.0, CLEAR, 0.6))
+    for x in (-225.0, 55.0, 315.0):
+        parts.append(Pos(x, -182.0, top_panel_z + 3.5) * box(42.0, 10.0, 8.0, BLACK, 0.4))
+        parts.append(Pos(x, 182.0, top_panel_z + 3.5) * box(42.0, 10.0, 8.0, BLACK, 0.4))
+
+    return compound(parts)
+
+
+def build_chassis_body_details():
+    parts = []
+
+    # Interior engineered details: bin cradle rails, ramp side guides, electronics/battery straps.
+    for y in (-BIN_WIDTH / 2.0 - 18.0, BIN_WIDTH / 2.0 + 18.0):
+        parts.append(Pos(BIN_CENTER_X, y, BIN_BOTTOM_Z - 4.0) * box(BIN_LENGTH + 42.0, 8.0, 12.0, BLACK, 0.4))
+        parts.append(Pos(BIN_FRONT_X + 22.0, y, BIN_BOTTOM_Z + 52.0) * box(46.0, 8.0, 96.0, BLACK, 0.4))
+
+    ramp_dx = RAMP_END_X - RAMP_START_X
+    ramp_dz = RAMP_END_Z - RAMP_START_Z
+    ramp_len = math.hypot(ramp_dx, ramp_dz)
+    ramp_angle = -math.degrees(math.atan2(ramp_dz, ramp_dx))
+    ramp_cx = (RAMP_START_X + RAMP_END_X) / 2.0
+    ramp_cz = (RAMP_START_Z + RAMP_END_Z) / 2.0
+    for y in (-RAMP_WIDTH / 2.0 - 17.0, RAMP_WIDTH / 2.0 + 17.0):
+        parts.append(Pos(ramp_cx, y, ramp_cz + 24.0) * Rot(0, ramp_angle, 0) * box(ramp_len - 22.0, 9.0, 32.0, BLACK, 0.4))
+
+    for x in (BATTERY_CENTER_X - 82.0, BATTERY_CENTER_X + 82.0):
+        parts.append(Pos(x, 0, BATTERY_CENTER_Z + BATTERY_HEIGHT / 2.0 + 9.0) * box(12.0, BATTERY_WIDTH + 38.0, 10.0, ORANGE, 0.4))
+
+    electronics_bus_x = -18.0
+    electronics_bus_y = OVERALL_WIDTH / 2.0 - 92.0
+    parts.append(Pos(electronics_bus_x, electronics_bus_y, 262.0) * box(180.0, 16.0, 16.0, BLACK, 0.4))
+    for x in (-85.0, -35.0, 15.0, 65.0):
+        parts.append(Pos(x, electronics_bus_y - 10.0, 262.0) * cyl_y(3.0, 22.0, ORANGE))
+
+    return compound(parts)
+
+
 def build_assembly_groups():
     return [
         PartGroup("frame_rails", build_frame(), SILVER),
         PartGroup("corner_brackets_and_bolts", build_brackets(), BLACK),
         PartGroup("wheel_mounts_and_axles", build_wheel_mounts(), BLACK),
-        PartGroup("knobby_wheels", build_wheels(), RUBBER),
+        PartGroup("simple_cylindrical_wheels", build_wheels(), RUBBER),
         PartGroup("front_brush_assembly", build_brush_assembly(), BLACK),
         PartGroup("angled_scoop_ramp", build_ramp(), MATTE_BLACK),
         PartGroup("waste_bin_panel_assembly", build_waste_bin(), SMOKE, 0.62),
         PartGroup("low_central_battery_box", build_battery(), MATTE_BLACK),
         PartGroup("electronics_enclosure", build_electronics(), MATTE_BLACK),
+        PartGroup("transparent_body_panels", build_transparent_body_panels(), CLEAR, 0.34),
+        PartGroup("chassis_body_detail_hardware", build_chassis_body_details(), BLACK),
         PartGroup("camera_mast_module", build_camera_mast(), SILVER),
         PartGroup("orange_service_handles", build_top_handles(), ORANGE),
     ]
@@ -471,7 +520,6 @@ def export_all():
     os.makedirs(STEP_DIR, exist_ok=True)
     os.makedirs(STL_DIR, exist_ok=True)
     os.makedirs(PNG_DIR, exist_ok=True)
-    os.makedirs(PREVIEW_PARTS, exist_ok=True)
 
     groups = build_assembly_groups()
     full = compound([g.obj for g in groups])
@@ -487,12 +535,6 @@ def export_all():
         export_stl(
             group.obj,
             os.path.join(STL_DIR, f"{group.name}.stl"),
-            tolerance=STL_LINEAR_TOLERANCE,
-            angular_tolerance=STL_ANGULAR_TOLERANCE,
-        )
-        export_stl(
-            group.obj,
-            os.path.join(PREVIEW_PARTS, f"{group.name}.stl"),
             tolerance=STL_LINEAR_TOLERANCE,
             angular_tolerance=STL_ANGULAR_TOLERANCE,
         )
@@ -542,7 +584,7 @@ def render_preview(groups):
     all_pts.append(ground.reshape(-1, 3))
 
     for group in groups:
-        path = os.path.join(PREVIEW_PARTS, f"{group.name}.stl")
+        path = os.path.join(STL_DIR, f"{group.name}.stl")
         tris = read_binary_stl(path)
         add_solid(ax, tris, group.color, alpha=group.preview_alpha)
         all_pts.append(tris.reshape(-1, 3))
@@ -556,7 +598,7 @@ def render_preview(groups):
     ax.set_ylim(cy - r, cy + r)
     ax.set_zlim(max(0, cz - r * 0.62), cz + r * 1.02)
     ax.set_box_aspect((1, 1, 0.72))
-    ax.view_init(elev=23, azim=-50)
+    ax.view_init(elev=24, azim=138)
     ax.set_axis_off()
     ax.set_facecolor((1, 1, 1, 1))
     fig.patch.set_facecolor((1, 1, 1, 1))
@@ -572,9 +614,10 @@ def sanity_checks():
     wheel_inner_y = wheel_center_y - WHEEL_WIDTH / 2.0
     checks.append(("wheel/frame side clearance", wheel_inner_y - side_outer >= 18.0, wheel_inner_y - side_outer))
 
-    brush_bottom = BRUSH_CENTER_Z - BRUSH_BRISTLE_RADIUS
-    checks.append(("brush bristle ground clearance", 5.0 <= brush_bottom <= 16.0, brush_bottom))
+    brush_bottom = BRUSH_CENTER_Z - BRUSH_RADIUS
+    checks.append(("brush roller ground clearance", 5.0 <= brush_bottom <= 16.0, brush_bottom))
     checks.append(("ramp starts behind brush", RAMP_START_X > BRUSH_CENTER_X, RAMP_START_X - BRUSH_CENTER_X))
+    checks.append(("ramp starts under brush envelope", RAMP_START_X - BRUSH_CENTER_X < BRUSH_RADIUS, RAMP_START_X - BRUSH_CENTER_X))
     checks.append(("ramp reaches bin inlet X", abs(RAMP_END_X - BIN_FRONT_X) <= 1.0, abs(RAMP_END_X - BIN_FRONT_X)))
     checks.append(("ramp outlet within bin opening Z", BIN_BOTTOM_Z - 10.0 <= RAMP_END_Z <= BIN_BOTTOM_Z + 95.0, RAMP_END_Z))
 
